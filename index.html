@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<!-- // Copyright 2014 Jason Davies, http://www.jasondavies.com/
+// For license see http://www.jasondavies.com/LICENSE.txt -->
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><meta charset="utf-8">
+<title>Where Next?</title>
+<style>
+@import url(../maps.css);
+
+.delaunay {
+  stroke: #000;
+  fill: none;
+}
+
+.point {
+  stroke: #000;
+  stroke-width: .5px;
+  fill: red;
+}
+
+.circle {
+  stroke: blue;
+  stroke-width: .5px;
+  fill: none;
+}
+
+.voronoi {
+  stroke: #000;
+}
+
+.graticule {
+  stroke: #000;
+  stroke-width: .25px;
+  fill: none;
+}
+</style>
+
+</head><body>
+
+<div id="map"></div>
+
+<form name="coords" onSubmit="return handleCoords()">
+  <input name="Submit"  type="submit" value="Add coordinates" />
+  <input type="number" id="lat"/>
+  <input type="number" id="lon"/>
+</form>
+
+<form name="location" onSubmit="return handleLocation()">
+  <input name="Submit"  type="submit" value="Add address" />
+  <input type="text" id="location"/>
+</form>
+
+<p><label for="circumcircle"><input id="circumcircle" type="checkbox"> Circumcircles</label>
+  <label for="delaunay"><input id="delaunay" type="checkbox"> Delaunay triangulation</label>
+
+</p><div class="wrapper">
+
+<p> Jason Davies' <a href='http://www.jasondavies.com/maps/voronoi/'>spherical Voronoi diagram</a> generator modified to support adding points via geocoding.</p>
+
+<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBMUmhtBDsqjjoCsmeBxptoTEY0U_yj17g"></script>
+<script src="js/d3_003.js"></script>
+<script src="js/d3_002.js"></script>
+<script src="js/d3.js"></script>
+<script>
+
+var degrees = 180 / Math.PI;
+
+var width = 960,
+    height = 500;
+
+var path = d3.geo.path()
+    .projection(d3.geo.orthographic()
+      .translate([width / 2, height / 2])
+      .scale(height / 2 - 1)
+      .rotate([1, 1]) // shh! clipping issues on this branch!
+      .clipAngle(90)
+      .precision(.1));
+
+var circle = d3.geo.circle(),
+    fill = d3.scale.category20b();
+
+var enableCC = false,
+    enableDelaunay = false,
+    click = true,
+    mousePoint;
+
+var svg = d3.select("#map").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    // .on("mousemove", function() {
+    //   var p = path.projection().invert(d3.mouse(this));
+    //   if (!p || isNaN(p[0])) return;
+    //   if (mousePoint) mousePoint[0] = p[0], mousePoint[1] = p[1];
+    //   else points.push(mousePoint = p);
+    //   update();
+    //   click = true;
+    // })
+    // .on("click", function() {
+    //   if (click) mousePoint = null;
+    // })
+    .call(d3.geo.zoom().projection(path.projection())
+      .on("zoom.redraw", function() {
+        d3.event.sourceEvent.preventDefault();
+        svg.selectAll("path").attr("d", path);
+        click = false;
+      }));
+
+var φ = 1.618033988749895;
+
+var points = [
+].map(normalise).map(spherical);
+
+svg.append("path")
+    .datum(d3.geo.graticule())
+    .attr("class", "graticule")
+    .attr("d", path);
+
+svg.append("path").attr("class", "delaunay");
+svg.append("path").attr("class", "point");
+
+d3.select("#circumcircle").on("change", function() {
+  enableCC = this.checked;
+  update();
+});
+
+d3.select("#delaunay").on("change", function() {
+  enableDelaunay = this.checked;
+  update();
+});
+
+function handleCoords(event){
+                point = [document.getElementById("lat").value, document.getElementById("lon").value];
+                points.push(point);
+                update();
+                return false;
+            }
+
+function handleLocation(event){
+                address = document.getElementById("location").value;
+                var geocoder = new google.maps.Geocoder();
+                geocoder.geocode( { 'address': address}, function(results) {
+                  points.push([parseInt(results[0].geometry.location.D), parseInt(results[0].geometry.location.k)]);
+                });
+                update();
+                return false;
+            }
+
+update();
+
+function update() {
+  var triangles = d3.geo.delaunay(points);
+
+  svg.select(".delaunay")
+      .datum(enableDelaunay ? {type: "GeometryCollection", geometries: triangles.map(function(triangle) {
+        if (triangle.centre.negative) return null;
+        // TODO mesh
+        triangle = triangle.coordinates.slice();
+        triangle.push(triangle[0]);
+        return {type: "LineString", coordinates: triangle};
+      })} : null)
+      .attr("d", path);
+
+  svg.select(".hull")
+      .datum(null) // TODO
+      .attr("d", path);
+
+  var cell = svg.selectAll(".voronoi")
+      .data(d3.geo.voronoi(points, triangles).geometries);
+  cell.enter().insert("path", ".graticule")
+      .attr("class", "voronoi");
+  cell.exit().remove();
+  cell.style("fill", function(_, i) { return fill(i); })
+      .attr("d", path);
+
+  var circumcircle = svg.selectAll(".circle")
+      .data(enableCC ? triangles.map(function(t) {
+        return circle.origin(spherical(t.centre)).angle(t.centre.radius * degrees)();
+      }) : []);
+  circumcircle.enter().insert("path", ".point").attr("class", "circle")
+  circumcircle.exit().remove();
+  circumcircle.attr("d", path);
+
+  svg.select(".point")
+      .datum({type: "MultiPoint", coordinates: points})
+      .attr("d", path);
+}
+
+function normalise(p) {
+  var n = p.length,
+      s = 0;
+  for (var i = 0; i < n; ++i) s += p[i] * p[i];
+  s = 1 / Math.sqrt(s);
+  for (var i = 0; i < n; ++i) p[i] *= s;
+  return p;
+}
+
+function spherical(cartesian) {
+  return [
+    Math.atan2(cartesian[1], cartesian[0]) * degrees,
+    asin(cartesian[2]) * degrees
+  ];
+}
+
+function asin(x) {
+  return Math.asin(Math.max(-1, Math.min(1, x)));
+}
+
+</script>
+</body></html>
