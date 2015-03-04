@@ -5,7 +5,6 @@
 <meta http-equiv="content-type" content="text/html; charset=UTF-8"><meta charset="utf-8">
 <title>Where Next?</title>
 <style>
-@import url(../maps.css);
 
 .delaunay {
   stroke: #000;
@@ -129,19 +128,23 @@ d3.select("#delaunay").on("change", function() {
 });
 
 function handleCoords(event){
-                point = [document.getElementById("lat").value, document.getElementById("lon").value];
+                var point = [document.getElementById("lat").value, document.getElementById("lon").value];
                 points.push(point);
                 update();
                 return false;
             }
 
+var geocoder;
+
 function handleLocation(event){
                 address = document.getElementById("location").value;
-                var geocoder = new google.maps.Geocoder();
+                geocoder = new google.maps.Geocoder();
                 geocoder.geocode( { 'address': address}, function(results) {
-                  points.push([parseInt(results[0].geometry.location.D), parseInt(results[0].geometry.location.k)]);
+                  var point = [parseFloat(results[0].geometry.location.lng()), parseFloat(results[0].geometry.location.lat())];
+                  points.push(point);
+                  update();
+                  console.log(points);
                 });
-                update();
                 return false;
             }
 
