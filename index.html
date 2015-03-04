@@ -38,15 +38,9 @@
 
 <div id="map"></div>
 
-<form name="coords" onSubmit="return handleCoords()">
-  <input name="Submit"  type="submit" value="Add coordinates" />
-  <input type="number" id="lat"/>
-  <input type="number" id="lon"/>
-</form>
-
 <form name="location" onSubmit="return handleLocation()">
-  <input name="Submit"  type="submit" value="Add address" />
-  <input type="text" id="location"/>
+  <input name="Submit"  type="submit" value="Add location" />
+  <input type="text" id="location" placeholder="Location"/>
 </form>
 
 <p><label for="circumcircle"><input id="circumcircle" type="checkbox"> Circumcircles</label>
@@ -127,26 +121,20 @@ d3.select("#delaunay").on("change", function() {
   update();
 });
 
-function handleCoords(event){
-                var point = [document.getElementById("lat").value, document.getElementById("lon").value];
-                points.push(point);
-                update();
-                return false;
-            }
 
 var geocoder;
 
 function handleLocation(event){
-                address = document.getElementById("location").value;
-                geocoder = new google.maps.Geocoder();
-                geocoder.geocode( { 'address': address}, function(results) {
-                  var point = [parseFloat(results[0].geometry.location.lng()), parseFloat(results[0].geometry.location.lat())];
-                  points.push(point);
-                  update();
-                  console.log(points);
-                });
-                return false;
-            }
+  address = document.getElementById("location").value;
+  geocoder = new google.maps.Geocoder();
+  geocoder.geocode( { 'address': address}, function(results) {
+    var point = [parseFloat(results[0].geometry.location.lng()), parseFloat(results[0].geometry.location.lat())];
+    points.push(point);
+    update();
+    console.log(points);
+  });
+  return false;
+}
 
 update();
 
